@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Examen - Formación Ética y Ciudadanía</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 10px; background: #eef3fb; }
+  h1 { color: #003366; text-align: center; }
+  .card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+  label { display: block; margin: 6px 0; }
+  select, input[type=text] { width: 100%; padding: 10px; margin-top: 4px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+  button { padding: 12px 20px; margin-top: 10px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; }
+  #btnEnviar { background-color: #0066cc; color: white; }
+  #btnPDF { background-color: #009933; color: white; display: none; }
+  .pregunta { margin-bottom: 15px; }
+  .opcion { margin-left: 20px; }
+  @media(max-width:600px){ select,input[type=text],button{font-size:16px;} }
+</style>
+</head>
+<body>
+
+<h1>📘 Examen - Formación Ética y Ciudadanía</h1>
+
+<div class="card">
+  <label for="selTurno">Turno:</label>
+  <select id="selTurno"><option value="">-- Turno --</option></select>
+
+  <label for="selGrado">Grado:</label>
+  <select id="selGrado"><option value="">-- Grado --</option></select>
+
+  <label for="selEst">Estudiante:</label>
+  <select id="selEst"><option value="">-- Estudiante --</option></select>
+
+  <label for="selMat">Materia:</label>
+  <select id="selMat"><option value="">-- Materia --</option></select>
+</div>
+
+<div id="preguntas"></div>
+
+<button id="btnEnviar">📤 Enviar Respuestas</button>
+<button id="btnPDF">💾 Generar PDF</button>
+
+<script>
+const URL_SCRIPT = "https://script.google.com/macros/s/AKfycbzTTvI2QYoBAHcoQKY8YDftGirkD6c5FTUZ0PBkhp83iyJjUFNd0OgKLG4l7iMtu3az/exec";
+
+const selTurno = document.getElementById("selTurno");
+const selGrado = document.getElementById("selGrado");
+const selEst   = document.getElementById("selEst");
+const selMat   = document.getElementById("selMat");
+const divPreg  = document.getElementById("preguntas");
+const btnEnviar= document.getElementById("btnEnviar");
+const btnPDF   = document.getElementById("btnPDF");
+
+// ====================== EXAMEN ======================
+const examenData = [
+  {
+    tipo: "multiple",
+    pregunta: "1️⃣ Son los pactos o convenios establecidos entre las partes interesadas en llegar a un objetivo común.",
+    opciones: ["Convivencia", "Normas", "Acuerdos institucionales", "Leyes"],
+    correcta: "Acuerdos institucionales"
+  },
+  {
+    tipo: "multiple",
+    pregunta: "2️⃣ Estado en el cual un grupo de diferentes personas se tratan entre sí en términos de imparcialidad.",
+    opciones: ["Convivencia", "Acuerdos institucionales", "Normas", "Acuerdos de aula"],
+    correcta: "Convivencia"
+  },
+  {
+    tipo: "multiple",
+    pregunta: "3️⃣ Ayuda a prevenir los problemas entre las autoridades y miembros de la comunidad educativa.",
+    opciones: ["Situación–problema", "Situación–evento", "Acuerdos institucionales", "Acuerdos de aula"],
+    correcta: "Acuerdos institucionales"
+  },
+  {
+    tipo: "multiple",
+    pregunta: "4️⃣ Acciones u omisiones agresivas entre los miembros de la comunidad educativa, siempre que ocurran en recintos educativos.",
+    opciones: ["Situación–problema", "Violencia escolar", "Agresividad", "Bullying"],
+    correcta: "Violencia escolar"
+  },
+  {
+    tipo: "multiple",
+    pregunta: "5️⃣ Predisposición a actuar o manifestarse violentamente, ocasionados por diferentes factores.",
+    opciones: ["Violencia", "Violencia escolar", "Agresividad", "Violencia física"],
+    correcta: "Agresividad"
+  },
+  {
+    tipo: "multiple",
+    pregunta: "6️⃣ Problemas familiares, personales o académicos son:",
+    opciones: ["Características de la violencia escolar", "Causas de la violencia escolar", "Consecuencias de la violencia escolar", "Tipos de violencia escolar"],
+    correcta: "Causas de la violencia escolar"
+  },
+  {
+    tipo: "multiple",
+    pregunta: "7️⃣ Es el núcleo de toda sociedad, el primer entorno en que el niño socializa.",
+    opciones: ["La familia", "La escuela", "La iglesia", "La sociedad"],
+    correcta: "La familia"
+  },
+  {
+    tipo: "multiple",
+    pregunta: "8️⃣ Niños maltratados que se convierten en maltratadores lo hacen por un proceso de:",
+    opciones: ["Competencia", "Imitación", "Agresión", "Provocación"],
+    correcta: "Imitación"
+  }
+];
+
+// ====================== INICIO ======================
+window.onload = () => {
+  cargarConfig();
+  selTurno.onchange = cargarEstudiantes;
+  selGrado.onchange = cargarEstudiantes;
+  selMat.onchange   = mostrarPreguntas;
+  btnEnviar.onclick = verificarIntentos;
+  btnPDF.onclick    = generarPDF;
+};
+
+// ====================== CONFIGURACIÓN ======================
+async function cargarConfig(){
+  try {
+    const res = await fetch(`${URL_SCRIPT}?action=config`);
+    const cfg = await res.json();
+    llenarSelect(selGrado,cfg.grados);
+    llenarSelect(selTurno,cfg.turnos);
+    llenarSelect(selMat,cfg.materias);
+  } catch(err){
+    alert("❌ Error al cargar configuración: "+err.message);
+  }
+}
+
+function llenarSelect(select,arr){
+  select.innerHTML = "";
+  const def = select===selGrado?"-- Grado --": select===selTurno?"-- Turno --":"-- Materia --";
+  select.appendChild(new Option(def,""));
+  arr.forEach(v=>select.appendChild(new Option(v,v)));
+}
+
+// ====================== CARGAR ESTUDIANTES ======================
+async function cargarEstudiantes(){
+  const g=selGrado.value, t=selTurno.value;
+  if(!g||!t) return;
+  try{
+    const res = await fetch(`${URL_SCRIPT}?action=estudiantes&grado=${g}&turno=${t}`);
+    const lst = await res.json();
+    selEst.innerHTML="";
+    selEst.appendChild(new Option("-- Estudiante --",""));
+    lst.forEach(e=>selEst.appendChild(new Option(e.nombre,e.nombre)));
+  }catch(err){
+    alert("❌ Error al cargar estudiantes: "+err.message);
+  }
+}
+
+// ====================== MOSTRAR PREGUNTAS ======================
+function mostrarPreguntas(){
+  divPreg.innerHTML="";
+  examenData.forEach((q,i)=>{
+    let html=`<div class="card pregunta"><p><b>${q.pregunta}</b></p>`;
+    if(q.tipo==="multiple"){
+      q.opciones.forEach(opt=>{
+        html+=`<label class="opcion"><input type="radio" name="p${i}" value="${opt}"> ${opt}</label>`;
+      });
+    } else if(q.tipo==="vf"){
+      html+=`<label class="opcion"><input type="radio" name="p${i}" value="Verdadero"> Verdadero</label>`;
+      html+=`<label class="opcion"><input type="radio" name="p${i}" value="Falso"> Falso</label>`;
+    } else if(q.tipo==="texto"){
+      html+=`<input type="text" name="p${i}" placeholder="Escribe tu respuesta aquí...">`;
+    }
+    html+="</div>";
+    divPreg.insertAdjacentHTML("beforeend",html);
+  });
+}
+
+// ====================== CONTROL DE INTENTOS ======================
+async function verificarIntentos(){
+  const est=selEst.value, g=selGrado.value, t=selTurno.value, mat=selMat.value;
+  if(!est||!g||!t||!mat) return alert("⚠️ Completá todos los campos antes de continuar.");
+
+  try{
+    const res = await fetch(`${URL_SCRIPT}?action=intentos&estudiante=${encodeURIComponent(est)}&materia=${encodeURIComponent(mat)}`);
+    const data = await res.json();
+    if(data.intentos >= 2){
+      alert("🚫 Ya realizaste los 2 intentos permitidos para este examen.");
+      return;
+    }
+    enviarExamen(data.intentos + 1);
+  }catch(err){
+    alert("⚠️ Error verificando intentos: "+err.message);
+  }
+}
+
+// ====================== ENVÍO DE RESPUESTAS ======================
+async function enviarExamen(intentos){
+  const est=selEst.value, mat=selMat.value, g=selGrado.value, t=selTurno.value;
+  const preguntas=examenData.map(q=>q.pregunta);
+  const correctas=examenData.map(q=>q.correcta);
+  const respuestas=examenData.map((_,i)=>{
+    const sel=document.querySelector(`input[name='p${i}']:checked`);
+    if(sel) return sel.value;
+    const txt=document.querySelector(`input[name='p${i}']`);
+    return txt? txt.value.trim() : "";
+  });
+
+  let nota=0;
+  respuestas.forEach((r,i)=>{
+    if((r||"").toLowerCase().includes((correctas[i]||"").toLowerCase())) nota++;
+  });
+
+  const payload={
+    estudiante:est,grado:g,turno:t,materia:mat,
+    preguntas,respuestas,correctas,nota,intentos,
+    fecha:new Date().toLocaleString()
+  };
+
+  try{
+    const res = await fetch(URL_SCRIPT,{
+      method:"POST",
+      headers:{"Content-Type":"text/plain"},
+      body:JSON.stringify(payload)
+    });
+    const ok = await res.json();
+    if(ok.status==="ok"){
+      alert(`✅ Envío exitoso.\nIntento Nº ${intentos}\nPuntaje: ${nota}/${correctas.length}`);
+      btnPDF.style.display="inline-block";
+    } else {
+      alert("❌ Error al guardar en Sheets.");
+    }
+  }catch(err){
+    alert("❌ Error guardando respuestas: "+err.message);
+  }
+}
+
+// ====================== GENERAR PDF ======================
+function generarPDF(){
+  const contenido=divPreg.innerHTML;
+  const win=window.open('','','width=800,height=600');
+  win.document.write('<html><head><title>Examen PDF</title></head><body>');
+  win.document.write(`<h1>Examen - ${selMat.value}</h1>`);
+  win.document.write(`<h3>Estudiante: ${selEst.value}</h3>`);
+  win.document.write(contenido);
+  win.document.write('</body></html>');
+  win.document.close();
+  win.print();
+}
+</script>
+</body>
+</html>
