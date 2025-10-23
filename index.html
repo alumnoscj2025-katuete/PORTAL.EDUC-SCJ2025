@@ -1,0 +1,285 @@
+<!--
+  examen_github_pages_index.html
+  Archivo listo para publicar en GitHub Pages.
+
+  Instrucciones rápidas para publicar en GitHub Pages:
+  1) Crea un repositorio en GitHub (público o privado según prefieras).
+  2) Añade este archivo como index.html en la raíz del repositorio (o en la carpeta /docs).
+  3) Ve a Settings -> Pages, elige la rama (main) y la carpeta (/root o /docs) y guarda.
+  4) GitHub generará una URL donde estará disponible la página.
+
+  Este archivo genera un examen interactivo con corrección automática para preguntas de:
+   - opción múltiple (una respuesta)
+   - opción múltiple (varias respuestas)
+   - verdadero/falso
+   - respuesta corta (no calificada automáticamente, pero muestra palabras clave sugeridas)
+
+  Funcionalidades incluidas:
+   - Renderizado dinámico desde un objeto `examenData` (fácil de editar)
+   - Corrección instantánea y detalle por pregunta
+   - Descarga de resultados en CSV/JSON
+   - Impresión del examen y/o resultados
+-->
+
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Examen - Escuela</title>
+  <style>
+    :root{--bg:#f6f9ff;--card:#fff;--accent:#1f6feb;--muted:#6b7280}
+    body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background:var(--bg); margin:0; color:#111}
+    .container{max-width:900px;margin:28px auto;padding:20px}
+    header{display:flex;align-items:center;gap:16px}
+    h1{margin:0;font-size:1.6rem}
+    .meta{color:var(--muted);font-size:.95rem}
+    .card{background:var(--card);border-radius:12px;box-shadow:0 6px 18px rgba(20,30,60,.08);padding:18px;margin-top:18px}
+    .question{padding:14px;border-radius:8px;border:1px solid #eef2ff;margin-bottom:12px}
+    .q-title{font-weight:600}
+    .controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+    button{background:var(--accent);color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer}
+    button.ghost{background:transparent;color:var(--accent);border:1px solid rgba(31,111,235,.12)}
+    .small{font-size:.9rem;padding:6px 10px}
+    .result{margin-top:12px;padding:12px;border-radius:8px}
+    .correct{background:#ecfdf5;color:#065f46}
+    .incorrect{background:#fff1f2;color:#7f1d1d}
+    footer{margin-top:28px;color:var(--muted);font-size:.9rem;text-align:center}
+    .badge{background:#eef2ff;color:var(--accent);padding:6px 10px;border-radius:999px;font-weight:600}
+    textarea{width:100%;min-height:80px;padding:8px;border-radius:6px;border:1px solid #e6e9ef}
+    @media (max-width:640px){.container{padding:12px}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Examen — Escuela Sagrado Corazón</h1>
+        <div class="meta">Curso: 7° grado • Tiempo: 45 minutos</div>
+      </div>
+      <div style="margin-left:auto;text-align:right">
+        <div class="badge">Versión 1.0</div>
+      </div>
+    </header>
+
+    <section class="card" id="exam-area">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div>
+          <strong>Instrucciones:</strong> Lee cada pregunta y selecciona o escribe la respuesta. Cuando termines, pulsa "Corregir y mostrar resultado".
+        </div>
+        <div class="controls">
+          <button id="btn-grade" class="small">Corregir y mostrar resultado</button>
+          <button id="btn-reset" class="small ghost">Reiniciar</button>
+          <button id="btn-download" class="small">Descargar resultados</button>
+          <button id="btn-print" class="small ghost">Imprimir</button>
+        </div>
+      </div>
+
+      <div id="questions"></div>
+
+      <div id="scoreBox" style="display:none" class="result card"></div>
+    </section>
+
+    <footer>
+      Archivo listo para publicar en GitHub Pages. Si quieres que lo adapte (idioma, número de preguntas, exportación a Google Sheets), dime.
+    </footer>
+  </div>
+
+  <script>
+    // --- CONFIG: Modifica aquí las preguntas del examen ---
+    const examenData = {
+      titulo: 'Examen de Matemáticas - 7° grado',
+      tiempo_min: 45,
+      preguntas: [
+        {
+          id: 'p1',
+          tipo: 'multiple_single', // multiple_single | multiple_multiple | true_false | short
+          enunciado: '¿Cuál es el resultado de 8 × 7?',
+          opciones: ['54','56','63','64'],
+          respuesta: ['56'],
+          puntaje: 1
+        },
+        {
+          id: 'p2',
+          tipo: 'multiple_multiple',
+          enunciado: 'Selecciona los números primos:',
+          opciones: ['4','5','7','9'],
+          respuesta: ['5','7'],
+          puntaje: 2
+        },
+        {
+          id: 'p3',
+          tipo: 'true_false',
+          enunciado: 'La suma de los ángulos interiores de un triángulo es 180 grados.',
+          respuesta: ['true'],
+          puntaje: 1
+        },
+        {
+          id: 'p4',
+          tipo: 'short',
+          enunciado: 'Explica brevemente qué es una fracción equivalente. (Respuesta corta)',
+          hint_keywords: ['misma', 'valor', 'dividir', 'multiplicar', 'numerador', 'denominador'],
+          puntaje: 2
+        }
+      ]
+    }
+
+    // --- RENDER ---
+    const questionsDiv = document.getElementById('questions')
+
+    function renderExam(){
+      questionsDiv.innerHTML = ''
+      examenData.preguntas.forEach((q, idx) => {
+        const qDiv = document.createElement('div')
+        qDiv.className = 'question'
+        qDiv.id = q.id
+
+        let html = `<div class="q-title">${idx+1}. ${q.enunciado}</div>`
+
+        if(q.tipo === 'multiple_single' || q.tipo === 'multiple_multiple'){
+          const multi = q.tipo === 'multiple_multiple'
+          html += '<div style="margin-top:8px">'
+          q.opciones.forEach((opt, i)=>{
+            const inputType = multi ? 'checkbox' : 'radio'
+            const name = `${q.id}-opt`
+            html += `<label style="display:block;margin:6px 0"><input type="${inputType}" name="${name}" value="${opt}"> ${opt}</label>`
+          })
+          html += '</div>'
+        } else if(q.tipo === 'true_false'){
+          html += '<div style="margin-top:8px">'
+          html += `<label style="display:block;margin:6px 0"><input type="radio" name="${q.id}-tf" value="true"> Verdadero</label>`
+          html += `<label style="display:block;margin:6px 0"><input type="radio" name="${q.id}-tf" value="false"> Falso</label>`
+          html += '</div>'
+        } else if(q.tipo === 'short'){
+          html += `<div style="margin-top:8px"><textarea name="${q.id}-short" placeholder="Escribe tu respuesta aquí..."></textarea>`
+          if(q.hint_keywords){
+            html += `<div style="margin-top:6px;color:var(--muted);font-size:.9rem">Palabras útiles: ${q.hint_keywords.join(', ')}</div>`
+          }
+          html += '</div>'
+        }
+
+        qDiv.innerHTML = html
+        questionsDiv.appendChild(qDiv)
+      })
+    }
+
+    // --- GRADING ---
+    function gradeExam(){
+      let totalPossible = 0
+      let totalScore = 0
+      const perQuestion = []
+
+      examenData.preguntas.forEach(q=>{
+        totalPossible += q.puntaje || 1
+        const qElem = document.getElementById(q.id)
+        let earned = 0
+        let correct = false
+        let studentAnswer = null
+
+        if(q.tipo === 'multiple_single'){
+          const sel = qElem.querySelector(`input[type=radio]:checked`)
+          studentAnswer = sel ? [sel.value] : []
+          if(studentAnswer.length && q.respuesta.includes(studentAnswer[0])){ earned = q.puntaje; correct = true }
+        }
+        else if(q.tipo === 'multiple_multiple'){
+          const sels = Array.from(qElem.querySelectorAll('input[type=checkbox]:checked')).map(i=>i.value)
+          studentAnswer = sels
+          // grade by set equality: full points only if exactly matches
+          const expected = q.respuesta.slice().sort()
+          const got = sels.slice().sort()
+          if(JSON.stringify(expected) === JSON.stringify(got)){ earned = q.puntaje; correct = true }
+          else {
+            // partial credit: intersection size / expected size
+            const inter = expected.filter(x=>got.includes(x)).length
+            if(inter>0){ earned = +(q.puntaje * (inter/expected.length)).toFixed(2) }
+          }
+        }
+        else if(q.tipo === 'true_false'){
+          const sel = qElem.querySelector(`input[type=radio]:checked`)
+          studentAnswer = sel ? sel.value : null
+          if(studentAnswer !== null && studentAnswer === String(q.respuesta[0])){ earned = q.puntaje; correct = true }
+        }
+        else if(q.tipo === 'short'){
+          const txt = qElem.querySelector('textarea').value.trim()
+          studentAnswer = txt
+          // no automatic full grading — but we give a heuristic score based on keywords
+          if(txt.length === 0){ earned = 0 }
+          else if(q.hint_keywords){
+            const found = q.hint_keywords.filter(k=> txt.toLowerCase().includes(k.toLowerCase())).length
+            const frac = Math.min(1, found / q.hint_keywords.length)
+            earned = +(q.puntaje * frac).toFixed(2)
+          }
+        }
+
+        totalScore += earned
+        perQuestion.push({id:q.id, earned, max:q.puntaje, correct, answer: studentAnswer})
+      })
+
+      return {totalScore:+totalScore.toFixed(2), totalPossible, perQuestion}
+    }
+
+    // --- UI actions ---
+    document.getElementById('btn-grade').addEventListener('click', ()=>{
+      const res = gradeExam()
+      const scoreBox = document.getElementById('scoreBox')
+      scoreBox.style.display = 'block'
+      scoreBox.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><strong>Puntaje: ${res.totalScore} / ${res.totalPossible}</strong></div><div style="color:var(--muted)">Porcentaje: ${Math.round((res.totalScore/res.totalPossible)*100)}%</div></div>`
+
+      // detalle por pregunta
+      res.perQuestion.forEach((pq, i)=>{
+        const q = examenData.preguntas.find(x=>x.id===pq.id)
+        const el = document.getElementById(pq.id)
+        const detail = document.createElement('div')
+        detail.style.marginTop='8px'
+        detail.className = pq.earned >= q.puntaje ? 'correct' : (pq.earned>0 ? '' : 'incorrect')
+        detail.innerHTML = `<div style="font-weight:600">${i+1}. ${q.enunciado}</div>`
+        detail.innerHTML += `<div style="font-size:.95rem;margin-top:6px">Respuesta del alumno: <em>${Array.isArray(pq.answer)? pq.answer.join(', '):(pq.answer||'—')}</em></div>`
+        detail.innerHTML += `<div style="margin-top:6px">Puntos: ${pq.earned} / ${q.puntaje}</div>`
+
+        // mostrar respuesta esperada cuando corresponde
+        if(q.respuesta){
+          detail.innerHTML += `<div style="margin-top:6px;color:var(--muted);font-size:.9rem">Respuesta esperada: ${Array.isArray(q.respuesta)? q.respuesta.join(', '): q.respuesta}</div>`
+        }
+
+        el.appendChild(detail)
+      })
+    })
+
+    document.getElementById('btn-reset').addEventListener('click', ()=>{
+      if(!confirm('¿Deseas reiniciar el examen? Se borrarán las respuestas actuales.')) return
+      renderExam()
+      document.getElementById('scoreBox').style.display = 'none'
+    })
+
+    document.getElementById('btn-print').addEventListener('click', ()=>{
+      window.print()
+    })
+
+    document.getElementById('btn-download').addEventListener('click', ()=>{
+      const res = gradeExam()
+      const data = {
+        metadata: {titulo: examenData.titulo, fecha: new Date().toISOString()},
+        resultado: res
+      }
+      const csvRows = []
+      csvRows.push(['Pregunta','Respuesta alumno','Puntos obtenidos','Puntos max'])
+      res.perQuestion.forEach((p, i)=>{
+        const student = Array.isArray(p.answer)? p.answer.join(' | '):(p.answer||'')
+        csvRows.push([`Q${i+1}`, student, p.earned, p.max])
+      })
+      csvRows.push(['Total', '', res.totalScore, res.totalPossible])
+
+      const csvContent = csvRows.map(r=> r.map(c=> '"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n')
+      const blob = new Blob([csvContent], {type:'text/csv;charset=utf-8;'})
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `resultado_examen_${new Date().toISOString().slice(0,10)}.csv`
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+    })
+
+    // Inicializar
+    renderExam()
+  </script>
+</body>
+</html>
